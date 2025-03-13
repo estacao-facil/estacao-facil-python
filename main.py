@@ -1,190 +1,290 @@
-from time import sleep
+import os
+
 import text as t
+from utils import *
+from constants import STATIONS, LOCATIONS, PATH_HISTORY
 
 
-# Constante global que define o tempo de espera (latência) para simular o tempo de resposta
-LATENCY = 0.5  # Mantenha entre 0 e 1 (valores maiores podem tornar o sistema mais lento)
-
-
-# Lista de estações disponíveis na linha de transporte
-stations = [
-    "Butantã",
-    "Pinheiros", 
-    "Faria Lima",
-    "Fradique Coutinho",
-    "Oscar Freire",
-    "Paulista",
-    "Higienópolis-Mackenzie",
-    "República",
-    "Luz",
-]
-
-
-# Dicionário que mapeia códigos de localização para descrições detalhadas de locais específicos nas estações
-locations = {
-    'BU-177': 'Entrada principal - Estação Butantã, próximo às catracas',
-    'BU-810': 'Plataforma - Estação Butantã, lado sentido Luz',
-
-    'PI-871': 'Plataforma - Estação Pinheiros, lado sentido Butantã',
-    'PI-614': 'Entrada da estação - Estação Pinheiros, próximo à integração com a CPTM',
-
-    'FA-673': 'Escadaria - Estação Faria Lima, saída para Av. Faria Lima',
-    'FA-346': 'Plataforma - Estação Faria Lima, lado sentido Luz',
-
-    'FR-411': 'Elevador - Estação Fradique Coutinho, acesso ao nível superior',
-    'FR-762': 'Saída - Estação Fradique Coutinho, próximo à Rua dos Pinheiros',
-
-    'OS-677': 'Corredor - Estação Oscar Freire, direção ao Hospital das Clínicas',
-    'OS-620': 'Plataforma - Estação Oscar Freire, lado sentido Butantã',
-
-    'PA-867': 'Saída - Estação Paulista, conexão com a linha verde',
-    'PA-967': 'Plataforma - Estação Paulista, lado sentido Luz',
-
-    'HI-197': 'Plataforma - Estação Higienópolis-Mackenzie, lado sentido Butantã',
-    'HI-213': 'Bilheteria - Estação Higienópolis-Mackenzie, próximo ao guichê de informações',
-
-    'RE-820': 'Bilheteria - Estação República, próxima ao guichê de informações',
-    'RE-618': 'Plataforma - Estação República, lado sentido Luz',
-
-    'LU-181': 'Plataforma - Estação Luz, conexão com a CPTM',
-    'LU-143': 'Saída - Estação Luz, próximo ao Museu da Língua Portuguesa'
-}
-
-
-# Função para exibir uma mensagem com uma breve pausa para simular tempo de resposta
-def display_cecilia_message(message):
-    sleep(LATENCY)  # Aguarda o tempo especificado para simular latência
-
-    print(t.cecilia_title)
-    print(message)
-
-
-# Função para solicitar uma opção do usuário, exibindo um título de solicitação
-def request_user_option(user_title):
-    sleep(LATENCY)  # Simula latência antes de solicitar a entrada
-
-    option = input(user_title + " ")
-    print()
-
-    return option
-
-
-# Função de onboarding para capturar o nome do usuário; se o campo estiver vazio, define como "Anônimo"
-def onboarding():
-    print(t.header)
-    display_cecilia_message(t.welcome_message)
-
-    username = request_user_option(t.undefined_title).strip().title()
-
-    return username if username !="" else "Anônimo"
-
-
-# Função que exibe o menu de informações e mantém o loop até que o usuário escolha uma opção válida
-def information_menu(username):
+# MENU: Início
+def home_menu(username, session_messages):
+    """
+    Exibe o menu principal (início) e direciona o usuário para outras funcionalidades
+    com base na opção escolhida. O menu continua em loop até o usuário optar por sair.
+    """
+    first_iteration = True
     while True:
-        display_cecilia_message(t.information_menu)
-        option = request_user_option(t.user_title.format(username))
-        
+        if first_iteration:
+            display_cecilia_message(t.welcome_menu.format(username), session_messages)
+        else:
+            display_cecilia_message(t.main_menu, session_messages)
+
+        option = request_user_option(t.user_title.format(username), session_messages)
         match option:
-            case "1": display_cecilia_message(t.alerts_notifications_message)  # Exibe alertas e notificações
-            case "2": display_cecilia_message(t.operating_hours_message)  # Exibe horários de operação
-            case "3": display_cecilia_message(t.fares_payment_message)  # Exibe tarifas e informações de pagamento
-            case "4": display_cecilia_message(t.list_stations_message)  # Exibe lista de estações
-            case "5": display_cecilia_message(t.about_team_message)  # Exibe informações sobre a equipe
-            case "0": display_cecilia_message(t.cancel_operation_message)  # Cancela a operação
-            case _:
-                display_cecilia_message(t.invalid_input_message)  # Exibe mensagem de entrada inválida
-                continue
+            case "1": information_menu(username, session_messages)
+            case "2": route_menu(username, session_messages)
+            case "3": location_menu(username, session_messages)
+            case "4": history_chat_menu(username, session_messages)
+            case "0":
+                # Exibe mensagem de despedida e encerra o loop.
+                display_cecilia_message(t.farewell_message, session_messages)
+                break
+            case _: display_cecilia_message(t.invalid_input_message, session_messages)  # Caso a opção seja inválida, exibe mensagem de erro.
 
-        break
+        first_iteration = False  # Após a primeira execução, o menu padrão é exibido.
 
 
-# Função para solicitar um índice de estação válido do usuário, garantindo que a entrada seja numérica e esteja dentro do intervalo permitido
-def request_valid_station_index(message, username):
+def onboarding(session_messages):
+    """
+    Função responsável pelo onboarding do usuário:
+    - Exibe o cabeçalho e mensagem de boas-vindas.
+    - Solicita o nome do usuário e trata a entrada, retornando um nome válido.
+    """
+    print(t.header)
+    display_cecilia_message(t.welcome_message, session_messages)
+
+    username = request_user_option(t.undefined_title, session_messages).strip().title()
+    return username or "Usuário Anônimo"  # Caso o usuário não informe um nome, utiliza "Usuário Anônimo".
+
+
+# MENU: Obter Informações
+def information_menu(username, session_messages):
+    """
+    Menu que exibe diferentes tipos de informações:
+    - Alertas e notificações.
+    - Horários de funcionamento.
+    - Tarifas e formas de pagamento.
+    - Lista de estações.
+    - Informações sobre a equipe.
+    - Opção de cancelar.
+    """
     while True:
-        display_cecilia_message(message)
-        station_index = request_user_option(t.user_title.format(username))
+        display_cecilia_message(t.information_menu, session_messages)
 
-        if not station_index.isdigit() or int(station_index) <= 0 or int(station_index) > len(stations):
-            display_cecilia_message(t.invalid_input_message)  # Exibe mensagem de entrada inválida se a entrada não for válida
-            continue
+        option = request_user_option(t.user_title.format(username), session_messages)
+        match option:
+            case "1": display_cecilia_message(t.alerts_notifications_message, session_messages)
+            case "2": display_cecilia_message(t.operating_hours_message, session_messages)
+            case "3": display_cecilia_message(t.fares_payment_message, session_messages)
+            case "4": display_cecilia_message(t.list_stations_message, session_messages)
+            case "5": display_cecilia_message(t.about_team_message, session_messages)
+            case "0": display_cecilia_message(t.cancel_operation_message, session_messages)
+            case _:
+                display_cecilia_message(t.invalid_input_message, session_messages)
+                continue  # Se a opção for inválida, repete o loop.
+        
+        break  # Encerra o loop após uma opção válida ser processada.
 
-        station_index = int(station_index) - 1
-        return station_index
 
+# MENU: Traçar Rotas entre Estações
+def route_menu(username, session_messages):
+    """
+    Função para o menu de traçar rotas entre estações.
+    Solicita ao usuário a estação de partida e de destino, valida a escolha e exibe um resumo da rota.
+    """
+    # Solicita e valida o índice da estação de partida.
+    departure_index = request_station_index(username, t.departure_station_options, session_messages)
+    departure_station = STATIONS[departure_index]
+    display_cecilia_message(t.departure_confirmation_message.format(departure_station), session_messages)
 
-# Função que solicita as estações de partida e destino, e exibe um resumo da rota com a direção e quantidade de estações
-def route_menu_option(username):
-    departure_index = request_valid_station_index(t.departure_station_options, username)
-    departure_station = stations[departure_index]
-    display_cecilia_message(t.departure_confirmation_message.format(departure_station))
+    # Solicita e valida o índice da estação de destino.
+    destination_index = request_station_index(username, t.destination_station_options, session_messages)
+    destination_station = STATIONS[destination_index]
+    display_cecilia_message(t.destination_confirmation_message.format(destination_station), session_messages)
 
-    destination_index = request_valid_station_index(t.destination_station_options, username)
-    destination_station = stations[destination_index]
-    display_cecilia_message(t.destination_confirmation_message.format(destination_station))
-
-    # Verifica se a estação de partida é a mesma que a de destino e exibe uma mensagem se for o caso
+    # Se a estação de partida for igual à de destino, exibe mensagem de erro e retorna.
     if departure_station == destination_station:
-        display_cecilia_message(t.same_departure_destination_message)
+        display_cecilia_message(t.same_departure_destination_message, session_messages)
         return
     
-    # Determina a direção da rota e calcula o número de estações até o destino
+    # Determina a direção com base na posição das estações na lista.
     direction = "Butantã" if departure_index > destination_index else "Luz"
     stations_until_destination = abs(departure_index - destination_index)
 
-    # Exibe o resumo da rota com as informações calculadas
+    # Exibe o resumo da rota com os detalhes da viagem.
     display_cecilia_message(t.route_summary_message.format(
         departure_station,
         destination_station,
         direction,
         stations_until_destination,
-        destination_station
-    ))
+        destination_station,
+    ), session_messages)
 
 
-# Função para localizar uma posição específica em uma estação com base no código de localização fornecido pelo usuário
-def location_menu_option(username):
+def request_station_index(username, message, session_messages):
+    """
+    Função que solicita ao usuário um índice correspondente à estação desejada.
+    Verifica se a entrada é um número válido e retorna o índice (ajustado para zero-based).
+    """
     while True:
-        display_cecilia_message(t.location_menu)
-        option = request_user_option(t.user_title.format(username))
-        location = locations.get(option)
-
-        if location is None:
-            display_cecilia_message(t.invalid_input_message)  # Exibe mensagem de entrada inválida se o código não for encontrado
+        display_cecilia_message(message, session_messages)
+        
+        option = request_user_option(t.user_title.format(username), session_messages)
+        if not valid_positive_index(option, len(STATIONS)):
+            display_cecilia_message(t.invalid_input_message, session_messages)
             continue
+        
+        return int(option) - 1  # Converte para inteiro e ajusta o índice.
+
+
+# MENU: Localizar-se
+def location_menu(username, session_messages):
+    """
+    Menu que solicita ao usuário a opção de localização e exibe a descrição da localização selecionada.
+    """
+    while True:
+        display_cecilia_message(t.location_menu, session_messages)
+
+        option = request_user_option(t.user_title.format(username), session_messages)
+        if not option in LOCATIONS.keys():
+            display_cecilia_message(t.invalid_input_message, session_messages)
+            continue
+        
         break
 
-    # Exibe a descrição do local para o código de localização válido
-    display_cecilia_message(t.location_result_message.format(location))
+    location = LOCATIONS[option]
+    display_cecilia_message(t.location_result_message.format(location), session_messages)
 
 
-# Função principal que inicia o programa, realiza o onboarding e controla a navegação entre as opções do menu
-def start():
-    username = onboarding()  # Captura o nome do usuário
-
-    first_iteration = True
+# MENU: Histórico de Conversas
+def history_chat_menu(username, session_messages):
+    """
+    Menu para gerenciar o histórico de conversas, permitindo:
+    - Restaurar uma conversa.
+    - Excluir uma conversa específica.
+    - Excluir todas as conversas.
+    - Cancelar a operação.
+    """
     while True:
-        # Exibe o menu de boas-vindas na primeira iteração, e o menu principal nas demais
-        if first_iteration: 
-            display_cecilia_message(t.welcome_menu.format(username))
-        else: 
-            display_cecilia_message(t.main_menu)
+        display_cecilia_message(t.history_chat_menu, session_messages)
 
-        option = request_user_option(t.user_title.format(username))
+        option = request_user_option(t.user_title.format(username), session_messages)
         match option:
-            case "1": information_menu(username)  # Acessa o menu de informações
-            case "2": route_menu_option(username)  # Calcula e exibe rota entre estações
-            case "3": location_menu_option(username)  # Localiza posição específica dentro da estação
-            case "0": 
-                display_cecilia_message(t.farewell_message)  # Exibe mensagem de despedida
+            case "1": restore_chat(username, session_messages)
+            case "2": delete_chat(username, session_messages)
+            case "3": delete_all_chats(username, session_messages)
+            case "0":
+                display_cecilia_message(t.cancel_operation_message, session_messages)
                 break
-            case _: 
-                display_cecilia_message(t.invalid_input_message)  # Exibe mensagem para entrada inválida
+            case _:
+                display_cecilia_message(t.invalid_input_message, session_messages)
                 continue
-            
-        first_iteration = False
+
+        break  # Sai do loop após uma operação válida.
 
 
-# Início do programa
+def restore_chat(username, session_messages):
+    """
+    Restaura uma conversa antiga:
+    - Obtém o histórico salvo.
+    - Exibe uma lista numerada das sessões salvas.
+    - Solicita ao usuário que escolha uma sessão para visualização.
+    - Exibe a conversa escolhida.
+    """
+    history_chat = get_history_chat()
+    list_history_chat = get_list_history_chat(history_chat)
+
+    if not history_chat:
+        display_cecilia_message(t.no_chat_history_message, session_messages)
+        return
+    
+    while True:
+        display_cecilia_message(t.view_old_chat_options.format(list_history_chat), session_messages)
+
+        option = request_user_option(t.user_title.format(username), session_messages)
+        if not valid_positive_index(option, len(history_chat.keys())):
+            display_cecilia_message(t.invalid_input_message, session_messages)
+            continue
+
+        break
+
+    chat_index = int(option) - 1  # Converte para inteiro e ajusta o índice.
+    chat_date, chat = list(history_chat.items())[chat_index]
+
+    display_cecilia_message(t.view_old_chat_message.format(chat_date, chat), session_messages)
+        
+
+def delete_chat(username, session_messages):
+    """
+    Exclui uma conversa específica:
+    - Exibe a lista de conversas salvas.
+    - Solicita a escolha da conversa a ser deletada.
+    - Pede confirmação do usuário.
+    - Remove a conversa selecionada e atualiza o arquivo de histórico.
+    """
+    history_chat = get_history_chat()
+    list_history_chat = get_list_history_chat(history_chat)
+
+    if not history_chat:
+        display_cecilia_message(t.no_chat_history_message, session_messages)
+        return
+
+    while True:
+        display_cecilia_message(t.view_old_chat_delete_options.format(list_history_chat), session_messages)
+
+        option = request_user_option(t.user_title.format(username), session_messages)
+        if not valid_positive_index(option, len(history_chat.keys())):
+            display_cecilia_message(t.invalid_input_message, session_messages)
+            continue
+
+        break
+
+    chat_index = int(option) - 1  # Converte para inteiro e ajusta o índice.
+    key = list(history_chat.keys())[chat_index]
+
+    # Solicita confirmação do usuário para exclusão.
+    user_confirmation = request_user_confirmation(t.user_title.format(username), t.delete_chat_confirm_message.format(key), session_messages)
+    if not user_confirmation:
+        display_cecilia_message(t.operation_cancelled_message, session_messages)
+        return
+        
+    # Remove o chat do histórico e atualiza o arquivo JSON.
+    history_chat.pop(key)
+    with open(PATH_HISTORY, "w") as file:
+        file.write(json.dumps(history_chat))
+
+    display_cecilia_message(t.chat_deleted_message.format(key), session_messages)
+
+
+def delete_all_chats(username, session_messages):
+    """
+    Exclui todas as conversas salvas:
+    - Solicita confirmação do usuário.
+    - Caso confirmado, remove o arquivo de histórico.
+    """
+    user_confirmation = request_user_confirmation(t.user_title.format(username), t.delete_all_chats_confirm_message, session_messages)
+    if not user_confirmation:
+        display_cecilia_message(t.operation_cancelled_message, session_messages)
+        return
+    
+    if os.path.exists(PATH_HISTORY): os.remove(PATH_HISTORY)
+    display_cecilia_message(t.all_chats_deleted_message, session_messages)
+
+
+# Início do Fluxo da Aplicação
+def start():
+    """
+    Função principal que inicia o fluxo da aplicação.
+    - Realiza o onboarding do usuário.
+    - Exibe o menu principal.
+    - Salva o histórico de mensagens da sessão.
+    - Trata interrupções (como Ctrl+C) e exceções inesperadas.
+    """
+    try:
+        messages = []  # Lista para armazenar todas as mensagens e interações da sessão.
+        username = onboarding(messages)
+
+        home_menu(username, messages)
+        save_chat(messages)
+    except KeyboardInterrupt:
+        # Caso o usuário interrompa a execução (Ctrl+C), exibe mensagem de despedida e salva o chat.
+        display_cecilia_message(t.farewell_message, messages)
+        save_chat(messages)
+    except:
+        # Em caso de exceção inesperada, salva o chat e relança a exceção.
+        save_chat(messages)
+        raise
+
+
 if __name__ == "__main__":
     start()
+    
